@@ -6,15 +6,17 @@ Press a global hotkey, a floating panel appears with your wallpapers arranged on
 
 ## Features
 
-- **Global hotkey** `⌃⌥W` toggles the launcher from anywhere
+- **Global hotkey** (default `⌃⌥W`, configurable) toggles the launcher from anywhere
 - **Rotating ring** — wallpapers sit on a circle that spins smoothly to the selected image; cards in the back shrink, darken and fade
 - **Type to search** by file or folder name
 - **Keyboard, trackpad and scroll wheel** navigation
 - Applies the wallpaper to **all connected displays**
 - Marks the currently active wallpaper
 - **Random wallpaper** from the menu, with `⌘R`, or via the command line
-- **Menu bar app** (no Dock icon): manage folders, rescan, launch at login
-- Recursively scans folders; supports JPG, PNG, HEIC, WebP, TIFF, GIF and BMP
+- **Light background blur** while the launcher is open
+- **Settings window** for folders, file types, sort order, shortcut, scaling, displays and the whole look of the ring
+- **Menu bar app** (no Dock icon)
+- Supports JPG, PNG, HEIC, WebP, TIFF, GIF and BMP
 
 ## Requirements
 
@@ -42,11 +44,20 @@ The app is ad-hoc signed, so no developer account is needed.
 | `↩` or double-click | Apply wallpaper |
 | `⇧↩` | Apply and keep the launcher open |
 | `⌘R` | Apply a random wallpaper |
+| `⌘,` | Open settings |
 | `esc` | Clear search, then close |
 
-### Folders
+### Settings
 
-By default the launcher reads `~/Pictures/Wallpaper`. Add more folders from the menu bar icon → **Folders → Add Folder…**. Clicking a folder reveals it in Finder; `⌥`-clicking removes it.
+Open them from the menu bar icon → **Settings…** or with `⌘,` while the launcher is open. Changes apply immediately.
+
+| Tab | Options |
+|---|---|
+| **General** | global shortcut (click and press a new combination), apply to all / main / display under the mouse, scaling (fill, fit, stretch, center), close after applying, start at the current wallpaper, launch at login |
+| **Folders** | add, remove and temporarily disable folders, include subfolders per folder, file types, sort order (name, newest, oldest, shuffle) |
+| **Appearance** | blur, dimming, card shape and size, corner radius, side card darkening, ring spacing and radius, number of visible cards, animation speed, spin-in, search bar and hints; reset to defaults and a live preview button |
+
+By default the launcher reads `~/Pictures/Wallpaper`.
 
 ### Scripting
 
@@ -59,5 +70,5 @@ open -a WallpaperLauncher                                               # toggle
 ## Notes
 
 - macOS only changes the wallpaper of the **current Space**; this is a limitation of the system API.
-- To change the hotkey, edit `registerHotKey()` in `Sources/main.swift` and rebuild.
+- The light background blur uses a private window server call (the same one terminal emulators use). If it ever becomes unavailable, the app falls back to a standard macOS blur.
 - "Launch at Login" requires the app to live in `/Applications` or `~/Applications`.

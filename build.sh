@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 APP=build/WallpaperLauncher.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -swift-version 5 -o "$APP/Contents/MacOS/WallpaperLauncher" Sources/main.swift 2>&1 | grep -v "warning:" || true
+swiftc -O -swift-version 5 -o "$APP/Contents/MacOS/WallpaperLauncher" Sources/*.swift 2>&1 | grep -v "warning:" || true
 [[ -x "$APP/Contents/MacOS/WallpaperLauncher" ]] || { echo "Build failed"; exit 1; }
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
