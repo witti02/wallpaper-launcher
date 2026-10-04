@@ -1,3 +1,5 @@
+<p align="center"><img src="Resources/AppIcon.png" width="160" alt="WallpaperLauncher icon"></p>
+
 # WallpaperLauncher
 
 A keyboard-driven wallpaper picker for macOS, inspired by the rofi / waypaper style launchers common on Arch and other Linux setups.
@@ -18,20 +20,37 @@ Press a global hotkey, a floating panel appears with your wallpapers arranged on
 - **Menu bar app** (no Dock icon)
 - Supports JPG, PNG, HEIC, WebP, TIFF, GIF and BMP
 
-## Requirements
+## Download
 
-- macOS 14 or later
-- Xcode Command Line Tools (`xcode-select --install`)
+Grab `WallpaperLauncher-<version>.zip` from the [latest release](https://github.com/witti02/wallpaper-launcher/releases/latest), unzip it and move **WallpaperLauncher.app** to `/Applications` or `~/Applications`. It runs on Apple silicon and Intel Macs with macOS 14 or later.
 
-## Build & install
+The app is not notarized by Apple, so macOS blocks it on first launch. To open it anyway, either:
+
+- open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**, or
+- remove the quarantine flag in Terminal:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/WallpaperLauncher.app
+  ```
+
+## Build from source
+
+Requires macOS 14 or later and the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 ./build.sh            # builds build/WallpaperLauncher.app
 ./build.sh --install  # builds and copies it to ~/Applications
+./build.sh --release  # universal build, zipped for distribution
 open ~/Applications/WallpaperLauncher.app
 ```
 
 The app is ad-hoc signed, so no developer account is needed.
+
+The app icon is drawn by a script. To regenerate it after tweaking the design:
+
+```bash
+swift Scripts/make-icon.swift Resources/AppIcon.png
+```
 
 ## Usage
 
