@@ -60,6 +60,6 @@ fi
 if [[ "$1" == "--release" ]]; then
   ZIP="build/WallpaperLauncher-$VERSION.zip"
   rm -f "$ZIP"
-  ditto -c -k --keepParent "$APP" "$ZIP"
+  ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ZIP"
   echo "✓ $ZIP ($(lipo -archs "$BIN"))"
 fi
