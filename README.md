@@ -4,25 +4,43 @@
 
 A keyboard-driven wallpaper picker for macOS, inspired by the rofi / waypaper style launchers common on Arch and other Linux setups.
 
-Press a global hotkey, a floating panel appears with your wallpapers arranged on a rotating 3D ring, pick one, hit Enter — done.
+Press a global hotkey, your wallpapers appear on a rotating 3D ring over a live preview, pick one, hit Enter — done.
+
+<p align="center"><img src="docs/demo.gif" width="760" alt="WallpaperLauncher demo: rotating ring and carousel of wallpapers"></p>
 
 ## Features
 
+**Picking**
 - **Global hotkey** (default `⌃⌥W`, configurable) toggles the launcher from anywhere
-- **Rotating ring** — wallpapers sit on a circle that spins smoothly to the selected image; cards in the back shrink, darken and fade
-- **Type to search** by file or folder name
-- **Keyboard, trackpad and scroll wheel** navigation
-- Applies the wallpaper to **all connected displays**
-- Marks the currently active wallpaper
-- **Random wallpaper** from the menu, with `⌘R`, or via the command line
-- **Light background blur** while the launcher is open
-- **Settings window** for folders, file types, sort order, shortcut, scaling, displays and the whole look of the ring
-- **Menu bar app** (no Dock icon)
-- Supports JPG, PNG, HEIC, WebP, TIFF, GIF and BMP
+- **Three layouts:** rotating 3D ring, cover-flow carousel, or a rofi-style grid
+- **Live preview:** the selected wallpaper fills the screen behind the cards while you browse
+- **Folder tabs:** switch between all wallpapers, favorites and each folder with `↑` `↓`
+- **Favorites** (`⌘F`), type-to-search, keyboard, trackpad and scroll wheel navigation
+- **Accent color** of the launcher follows the current wallpaper
+
+**Applying**
+- **Different wallpapers per display:** pick the target display in the launcher (`⌘D`, `⌘1`–`⌘9`)
+- **All Spaces at once:** the chosen wallpaper is re-applied when you switch Spaces
+- **Light/dark pairs:** `name-light.jpg` / `name-dark.jpg` switch with the system appearance
+- **Live wallpapers:** MP4/MOV videos and animated GIFs play muted behind your desktop icons
+
+**Automation**
+- **Change every** 5 minutes … 1 day, shuffled or in order, from all wallpapers or favorites only
+- **Time of day:** different wallpapers (or folders) for morning, day, evening and night
+- **Color schemes like pywal:** exports a 16-color palette for kitty, Ghostty, Alacritty, Xresources, CSS and shell scripts
+- **Hook:** runs your own shell command after every change
+
+**Getting wallpapers**
+- **Online browser** for [Wallhaven](https://wallhaven.cc) (search, top, hot, latest, random — SFW only) and the Bing image of the day
+- **Drag & drop** images, videos or image links onto the menu bar icon to add and apply them
+
+**App**
+- Menu bar app (no Dock icon), settings window, built-in **auto-update** from GitHub releases
+- Supports JPG, PNG, HEIC, WebP, TIFF, GIF, BMP, MP4, MOV and M4V
 
 ## Download
 
-Grab `WallpaperLauncher-<version>.zip` from the [latest release](https://github.com/witti02/wallpaper-launcher/releases/latest), unzip it and move **WallpaperLauncher.app** to `/Applications` or `~/Applications`. It runs on Apple silicon and Intel Macs with macOS 14 or later.
+Grab `WallpaperLauncher-<version>.zip` from the [latest release](https://github.com/witti02/wallpaper-launcher/releases/latest), unzip it and move **WallpaperLauncher.app** to `/Applications` or `~/Applications`. It runs on Apple silicon and Intel Macs with macOS 14 or later. Later versions install themselves via **Check for Updates…**.
 
 The app is not notarized by Apple, so macOS blocks it on first launch. To open it anyway, either:
 
@@ -32,6 +50,56 @@ The app is not notarized by Apple, so macOS blocks it on first launch. To open i
   ```bash
   xattr -dr com.apple.quarantine /Applications/WallpaperLauncher.app
   ```
+
+## Usage
+
+| Key | Action |
+|---|---|
+| `⌃⌥W` (global) | Open / close the launcher |
+| type | Search wallpapers |
+| `←` `→` / `Tab` / scroll | Select (rotate the ring) |
+| `↑` `↓` | Switch folder tab (in the grid: move by row, `⌥↑` `⌥↓` switches tabs) |
+| `↩` or double-click | Apply wallpaper |
+| `⇧↩` | Apply and keep the launcher open |
+| `⌘F` | Add / remove favorite |
+| `⌘D` / `⌘1`–`⌘9` | Choose the display to apply to |
+| `⌘S` | Switch layout (ring, carousel, grid) |
+| `⌘G` | Get wallpapers online |
+| `⌘R` | Apply a random wallpaper |
+| `⌘,` | Open settings |
+| `esc` | Clear search, then close |
+
+The menu bar icon also offers **Next Wallpaper**, **Random Wallpaper**, **Get Wallpapers…**, **Check for Updates…** and accepts dropped images.
+
+### Settings
+
+Open them from the menu bar icon → **Settings…** or with `⌘,` while the launcher is open. Changes apply immediately.
+
+| Tab | Options |
+|---|---|
+| **General** | shortcut, target displays, scaling, close after applying, all Spaces, light/dark pairs, GIF animation, pause videos on battery, launch at login, automatic updates |
+| **Folders** | add, remove and disable folders, subfolders per folder, file types, sort order, download folder, favorites |
+| **Appearance** | layout, live preview, blur, dimming, card shape and size, corner radius, ring spacing and radius, visible cards, animation speed, tabs, search bar and hints |
+| **Automation** | rotation interval, pool and order, or a time-of-day schedule |
+| **Colors** | palette of the current wallpaper, accent tint, color scheme export, command to run after every change |
+
+By default the launcher reads `~/Pictures/Wallpaper` and saves downloads to `~/Pictures/Wallpaper/Downloads`.
+
+### Color schemes
+
+With **Colors → Export a color scheme** enabled, every wallpaper change writes these files to `~/.cache/wallpaper-launcher` (configurable):
+
+`colors.json` · `colors.sh` · `colors.css` · `colors.Xresources` · `colors-kitty.conf` · `colors-ghostty` · `colors-alacritty.toml`
+
+For example, add `include ~/.cache/wallpaper-launcher/colors-kitty.conf` to your kitty config and set the post-change command to `kitty +kitten themes --reload-in=all` (or any script). The command runs in zsh with `$WALLPAPER` and `$WALLPAPER_COLORS` set.
+
+### Scripting
+
+```bash
+open -a WallpaperLauncher                                               # toggle the launcher (e.g. from skhd or Hammerspoon)
+~/Applications/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --random      # set a random wallpaper and exit
+~/Applications/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --background  # start without showing the panel
+```
 
 ## Build from source
 
@@ -44,50 +112,16 @@ Requires macOS 14 or later and the Xcode Command Line Tools (`xcode-select --ins
 open ~/Applications/WallpaperLauncher.app
 ```
 
-The app is ad-hoc signed, so no developer account is needed.
-
-The app icon is drawn by a script. To regenerate it after tweaking the design:
+The app is ad-hoc signed, so no developer account is needed. The icon and the demo GIF are generated:
 
 ```bash
 swift Scripts/make-icon.swift Resources/AppIcon.png
-```
-
-## Usage
-
-| Key | Action |
-|---|---|
-| `⌃⌥W` (global) | Open / close the launcher |
-| type | Filter wallpapers |
-| `←` `→` / `Tab` / scroll | Rotate the ring |
-| `Home` / `End` | Jump to first / last |
-| `↩` or double-click | Apply wallpaper |
-| `⇧↩` | Apply and keep the launcher open |
-| `⌘R` | Apply a random wallpaper |
-| `⌘,` | Open settings |
-| `esc` | Clear search, then close |
-
-### Settings
-
-Open them from the menu bar icon → **Settings…** or with `⌘,` while the launcher is open. Changes apply immediately.
-
-| Tab | Options |
-|---|---|
-| **General** | global shortcut (click and press a new combination), apply to all / main / display under the mouse, scaling (fill, fit, stretch, center), close after applying, start at the current wallpaper, launch at login |
-| **Folders** | add, remove and temporarily disable folders, include subfolders per folder, file types, sort order (name, newest, oldest, shuffle) |
-| **Appearance** | blur, dimming, card shape and size, corner radius, side card darkening, ring spacing and radius, number of visible cards, animation speed, spin-in, search bar and hints; reset to defaults and a live preview button |
-
-By default the launcher reads `~/Pictures/Wallpaper`.
-
-### Scripting
-
-```bash
-open -a WallpaperLauncher                                               # toggle the launcher (e.g. from skhd or Hammerspoon)
-~/Applications/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --random      # set a random wallpaper and exit
-~/Applications/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --background  # start without showing the panel
+build/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --render-demo docs/demo.gif   # uses ffmpeg if installed
 ```
 
 ## Notes
 
-- macOS only changes the wallpaper of the **current Space**; this is a limitation of the system API.
+- macOS has no API to set a wallpaper for all Spaces, so the app re-applies it when you switch to a Space that still shows an old one.
+- Live wallpapers only play while the app is running; otherwise their first frame stays as a still wallpaper.
 - The light background blur uses a private window server call (the same one terminal emulators use). If it ever becomes unavailable, the app falls back to a standard macOS blur.
-- "Launch at Login" requires the app to live in `/Applications` or `~/Applications`.
+- "Launch at Login" and auto-update require the app to live in `/Applications` or `~/Applications`.

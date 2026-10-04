@@ -73,6 +73,64 @@ enum CardShape: String, CaseIterable, Identifiable {
     }
 }
 
+enum RingStyle: String, CaseIterable, Identifiable {
+    case ring, carousel, grid
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .ring: "Ring"
+        case .carousel: "Carousel"
+        case .grid: "Grid"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .ring: "circle.dashed"
+        case .carousel: "rectangle.stack"
+        case .grid: "square.grid.3x3"
+        }
+    }
+}
+
+enum AutomationMode: String, CaseIterable, Identifiable {
+    case off, interval, timeOfDay
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .interval: "Change every…"
+        case .timeOfDay: "Time of day"
+        }
+    }
+}
+
+enum RotationPool: String, CaseIterable, Identifiable {
+    case all, favorites
+    var id: String { rawValue }
+    var label: String { self == .all ? "All wallpapers" : "Favorites only" }
+}
+
+/// A wallpaper (or a folder to pick from) that becomes active at a given time of day.
+struct TimeSlot: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var name: String
+    var hour: Int
+    var minute: Int = 0
+    var path: String = ""
+
+    var minutesOfDay: Int { hour * 60 + minute }
+    var displayPath: String {
+        path.isEmpty ? "Not set" : path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+
+    static let defaults: [TimeSlot] = [
+        TimeSlot(name: "Morning", hour: 6),
+        TimeSlot(name: "Day", hour: 10),
+        TimeSlot(name: "Evening", hour: 18),
+        TimeSlot(name: "Night", hour: 21),
+    ]
+}
+
 struct ImageType: Identifiable {
     let id: String
     let label: String
@@ -86,6 +144,7 @@ struct ImageType: Identifiable {
         ImageType(id: "tiff", label: "TIFF", extensions: ["tif", "tiff"]),
         ImageType(id: "gif", label: "GIF", extensions: ["gif"]),
         ImageType(id: "bmp", label: "BMP", extensions: ["bmp"]),
+        ImageType(id: "video", label: "Video", extensions: ["mp4", "mov", "m4v"]),
     ]
 }
 
@@ -97,15 +156,21 @@ final class Settings: ObservableObject {
     private let defaults = UserDefaults.standard
 
     // Library
-    @Published var folders: [WallpaperFolder] { didSet { saveFolders() } }
-    @Published var imageTypes: Set<String> { didSet { defaults.set(Array(imageTypes), forKey: "imageTypes") } }
+    @Published var folders: [WallpaperFolder] { didSet { save(folders, "folderEntries") } }
+    @Published var disabledImageTypes: Set<String> { didSet { defaults.set(Array(disabledImageTypes), forKey: "disabledImageTypes") } }
     @Published var sortOrder: SortOrder { didSet { defaults.set(sortOrder.rawValue, forKey: "sortOrder") } }
+    @Published var favorites: Set<String> { didSet { defaults.set(Array(favorites), forKey: "favorites") } }
+    @Published var downloadFolder: String { didSet { defaults.set(downloadFolder, forKey: "downloadFolder") } }
 
     // Behavior
     @Published var closeOnApply: Bool { didSet { defaults.set(closeOnApply, forKey: "closeOnApply") } }
     @Published var startAtCurrent: Bool { didSet { defaults.set(startAtCurrent, forKey: "startAtCurrent") } }
     @Published var scaling: WallpaperScaling { didSet { defaults.set(scaling.rawValue, forKey: "scaling") } }
     @Published var displayTarget: DisplayTarget { didSet { defaults.set(displayTarget.rawValue, forKey: "displayTarget") } }
+    @Published var allSpaces: Bool { didSet { defaults.set(allSpaces, forKey: "allSpaces") } }
+    @Published var lightDarkPairs: Bool { didSet { defaults.set(lightDarkPairs, forKey: "lightDarkPairs") } }
+    @Published var animateGIFs: Bool { didSet { defaults.set(animateGIFs, forKey: "animateGIFs") } }
+    @Published var pauseVideosOnBattery: Bool { didSet { defaults.set(pauseVideosOnBattery, forKey: "pauseVideosOnBattery") } }
 
     // Shortcut (Carbon key code + Carbon modifier mask)
     @Published var hotkeyKeyCode: Int { didSet { defaults.set(hotkeyKeyCode, forKey: "hotkeyKeyCode") } }
@@ -114,7 +179,25 @@ final class Settings: ObservableObject {
     /// Not persisted: the global hotkey is paused while a new one is being recorded.
     @Published var isRecordingHotkey = false
 
+    // Automation
+    @Published var automation: AutomationMode { didSet { defaults.set(automation.rawValue, forKey: "automation") } }
+    @Published var intervalMinutes: Int { didSet { defaults.set(intervalMinutes, forKey: "intervalMinutes") } }
+    @Published var rotationPool: RotationPool { didSet { defaults.set(rotationPool.rawValue, forKey: "rotationPool") } }
+    @Published var rotationShuffle: Bool { didSet { defaults.set(rotationShuffle, forKey: "rotationShuffle") } }
+    @Published var timeSlots: [TimeSlot] { didSet { save(timeSlots, "timeSlots") } }
+
+    // Colors
+    @Published var matchAccent: Bool { didSet { defaults.set(matchAccent, forKey: "matchAccent") } }
+    @Published var exportPalette: Bool { didSet { defaults.set(exportPalette, forKey: "exportPalette") } }
+    @Published var paletteFolder: String { didSet { defaults.set(paletteFolder, forKey: "paletteFolder") } }
+    @Published var postChangeCommand: String { didSet { defaults.set(postChangeCommand, forKey: "postChangeCommand") } }
+
+    // Updates
+    @Published var checkForUpdates: Bool { didSet { defaults.set(checkForUpdates, forKey: "checkForUpdates") } }
+
     // Appearance
+    @Published var ringStyle: RingStyle { didSet { defaults.set(ringStyle.rawValue, forKey: "ringStyle") } }
+    @Published var livePreview: Bool { didSet { defaults.set(livePreview, forKey: "livePreview") } }
     @Published var blurRadius: Double { didSet { defaults.set(blurRadius, forKey: "blurRadius") } }
     @Published var dimming: Double { didSet { defaults.set(dimming, forKey: "dimming") } }
     @Published var cardSize: Double { didSet { defaults.set(cardSize, forKey: "cardSize") } }
@@ -128,28 +211,58 @@ final class Settings: ObservableObject {
     @Published var spinIn: Bool { didSet { defaults.set(spinIn, forKey: "spinIn") } }
     @Published var showSearchBar: Bool { didSet { defaults.set(showSearchBar, forKey: "showSearchBar") } }
     @Published var showHints: Bool { didSet { defaults.set(showHints, forKey: "showHints") } }
+    @Published var showTabs: Bool { didSet { defaults.set(showTabs, forKey: "showTabs") } }
 
     private init() {
         let d = UserDefaults.standard
-        if let data = d.data(forKey: "folderEntries"), let saved = try? JSONDecoder().decode([WallpaperFolder].self, from: data) {
+        let pictures = NSHomeDirectory() + "/Pictures/Wallpaper"
+
+        if let saved: [WallpaperFolder] = Self.load(d, "folderEntries") {
             folders = saved
         } else {
             // Migrate the plain path list from version 1.0.
-            let paths = d.stringArray(forKey: "folders") ?? [NSHomeDirectory() + "/Pictures/Wallpaper"]
-            folders = paths.map { WallpaperFolder(path: $0) }
+            folders = (d.stringArray(forKey: "folders") ?? [pictures]).map { WallpaperFolder(path: $0) }
         }
-        imageTypes = Set(d.stringArray(forKey: "imageTypes") ?? ImageType.all.map(\.id))
+        if let disabled = d.stringArray(forKey: "disabledImageTypes") {
+            disabledImageTypes = Set(disabled)
+        } else if let enabled = d.stringArray(forKey: "imageTypes") {
+            // Migrate the enabled list from version 1.0; new types (video) start enabled.
+            disabledImageTypes = Set(ImageType.all.map(\.id)).subtracting(enabled).subtracting(["video"])
+        } else {
+            disabledImageTypes = []
+        }
         sortOrder = SortOrder(rawValue: d.string(forKey: "sortOrder") ?? "") ?? .name
+        favorites = Set(d.stringArray(forKey: "favorites") ?? [])
+        downloadFolder = d.string(forKey: "downloadFolder") ?? pictures + "/Downloads"
 
         closeOnApply = d.object(forKey: "closeOnApply") as? Bool ?? true
         startAtCurrent = d.object(forKey: "startAtCurrent") as? Bool ?? true
         scaling = WallpaperScaling(rawValue: d.string(forKey: "scaling") ?? "") ?? .fill
         displayTarget = DisplayTarget(rawValue: d.string(forKey: "displayTarget") ?? "") ?? .all
+        allSpaces = d.object(forKey: "allSpaces") as? Bool ?? true
+        lightDarkPairs = d.object(forKey: "lightDarkPairs") as? Bool ?? true
+        animateGIFs = d.object(forKey: "animateGIFs") as? Bool ?? true
+        pauseVideosOnBattery = d.object(forKey: "pauseVideosOnBattery") as? Bool ?? true
 
         hotkeyKeyCode = d.object(forKey: "hotkeyKeyCode") as? Int ?? kVK_ANSI_W
         hotkeyModifiers = d.object(forKey: "hotkeyModifiers") as? Int ?? (controlKey | optionKey)
         hotkeyKeyName = d.string(forKey: "hotkeyKeyName") ?? "W"
 
+        automation = AutomationMode(rawValue: d.string(forKey: "automation") ?? "") ?? .off
+        intervalMinutes = d.object(forKey: "intervalMinutes") as? Int ?? 30
+        rotationPool = RotationPool(rawValue: d.string(forKey: "rotationPool") ?? "") ?? .all
+        rotationShuffle = d.object(forKey: "rotationShuffle") as? Bool ?? true
+        timeSlots = Self.load(d, "timeSlots") ?? TimeSlot.defaults
+
+        matchAccent = d.object(forKey: "matchAccent") as? Bool ?? true
+        exportPalette = d.object(forKey: "exportPalette") as? Bool ?? false
+        paletteFolder = d.string(forKey: "paletteFolder") ?? NSHomeDirectory() + "/.cache/wallpaper-launcher"
+        postChangeCommand = d.string(forKey: "postChangeCommand") ?? ""
+
+        checkForUpdates = d.object(forKey: "checkForUpdates") as? Bool ?? true
+
+        ringStyle = RingStyle(rawValue: d.string(forKey: "ringStyle") ?? "") ?? .ring
+        livePreview = d.object(forKey: "livePreview") as? Bool ?? true
         blurRadius = d.object(forKey: "blurRadius") as? Double ?? Defaults.blurRadius
         dimming = d.object(forKey: "dimming") as? Double ?? Defaults.dimming
         cardSize = d.object(forKey: "cardSize") as? Double ?? Defaults.cardSize
@@ -163,6 +276,7 @@ final class Settings: ObservableObject {
         spinIn = d.object(forKey: "spinIn") as? Bool ?? true
         showSearchBar = d.object(forKey: "showSearchBar") as? Bool ?? true
         showHints = d.object(forKey: "showHints") as? Bool ?? true
+        showTabs = d.object(forKey: "showTabs") as? Bool ?? true
     }
 
     enum Defaults {
@@ -179,6 +293,8 @@ final class Settings: ObservableObject {
     }
 
     func resetAppearance() {
+        ringStyle = .ring
+        livePreview = true
         blurRadius = Defaults.blurRadius
         dimming = Defaults.dimming
         cardSize = Defaults.cardSize
@@ -192,20 +308,40 @@ final class Settings: ObservableObject {
         spinIn = true
         showSearchBar = true
         showHints = true
+        showTabs = true
     }
 
-    private func saveFolders() {
-        if let data = try? JSONEncoder().encode(folders) { defaults.set(data, forKey: "folderEntries") }
+    private func save<T: Encodable>(_ value: T, _ key: String) {
+        if let data = try? JSONEncoder().encode(value) { defaults.set(data, forKey: key) }
+    }
+
+    private static func load<T: Decodable>(_ d: UserDefaults, _ key: String) -> T? {
+        d.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
     }
 
     var enabledExtensions: Set<String> {
-        Set(ImageType.all.filter { imageTypes.contains($0.id) }.flatMap(\.extensions))
+        Set(ImageType.all.filter { !disabledImageTypes.contains($0.id) }.flatMap(\.extensions))
     }
 
     func addFolders(_ urls: [URL]) {
         for url in urls where !folders.contains(where: { $0.path == url.path }) {
             folders.append(WallpaperFolder(path: url.path))
         }
+    }
+
+    /// Makes sure files saved to `url` show up in the library.
+    func ensureInLibrary(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        let covered = folders.contains { f in
+            f.enabled && (path == f.path || (f.recursive && path.hasPrefix(f.path + "/")))
+        }
+        if !covered { addFolders([url]) }
+    }
+
+    func isFavorite(_ url: URL) -> Bool { favorites.contains(url.path) }
+
+    func toggleFavorite(_ url: URL) {
+        if favorites.contains(url.path) { favorites.remove(url.path) } else { favorites.insert(url.path) }
     }
 
     // MARK: Shortcut display

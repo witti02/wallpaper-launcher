@@ -3,15 +3,22 @@ import Carbon.HIToolbox
 import ServiceManagement
 import SwiftUI
 
+final class TabModel: ObservableObject {
+    @Published var selection: Int
+    init(selection: Int) { self.selection = selection }
+}
+
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var store: WallpaperStore
+    @ObservedObject var app: AppDelegate
     @StateObject private var tab: TabModel
     var onPreview: () -> Void
 
-    init(settings: Settings, store: WallpaperStore, initialTab: Int = 0, onPreview: @escaping () -> Void) {
+    init(settings: Settings, store: WallpaperStore, app: AppDelegate, initialTab: Int = 0, onPreview: @escaping () -> Void) {
         self.settings = settings
         self.store = store
+        self.app = app
         self.onPreview = onPreview
         _tab = StateObject(wrappedValue: TabModel(selection: initialTab))
     }
@@ -20,18 +27,17 @@ struct SettingsView: View {
         TabView(selection: $tab.selection) {
             GeneralSettings(settings: settings)
                 .tabItem { Label("General", systemImage: "gearshape") }.tag(0)
-            FolderSettings(settings: settings, store: store)
+            FolderSettings(settings: settings, store: store, onOpenOnline: { app.openOnline() })
                 .tabItem { Label("Folders", systemImage: "folder") }.tag(1)
             AppearanceSettings(settings: settings, onPreview: onPreview)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }.tag(2)
+            AutomationSettings(settings: settings, onNext: { app.nextWallpaper() })
+                .tabItem { Label("Automation", systemImage: "clock.arrow.2.circlepath") }.tag(3)
+            ColorSettings(settings: settings, app: app)
+                .tabItem { Label("Colors", systemImage: "swatchpalette") }.tag(4)
         }
-        .frame(width: 560, height: 560)
+        .frame(width: 600, height: 620)
     }
-}
-
-final class TabModel: ObservableObject {
-    @Published var selection: Int
-    init(selection: Int) { self.selection = selection }
 }
 
 // MARK: - General
@@ -70,15 +76,30 @@ struct GeneralSettings: View {
                 Toggle("Close launcher after applying", isOn: $settings.closeOnApply)
                 Toggle("Start at the current wallpaper", isOn: $settings.startAtCurrent)
             }
+            Section {
+                Toggle("Use the same wallpaper on all Spaces", isOn: $settings.allSpaces)
+                Toggle("Switch light/dark pairs with the system appearance", isOn: $settings.lightDarkPairs)
+            } header: {
+                Text("Spaces & appearance")
+            } footer: {
+                Text("macOS only changes the current Space, so the app re-applies your wallpaper when you switch Spaces. Light/dark pairs are files named like `mountain-light.jpg` and `mountain-dark.jpg` (also `_light`/`_dark` or `day`/`night`) in the same folder.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Live wallpapers") {
+                Toggle("Play animated GIFs", isOn: $settings.animateGIFs)
+                Toggle("Pause videos on battery power", isOn: $settings.pauseVideosOnBattery)
+                Text("Videos (MP4, MOV) and GIFs play muted behind your desktop icons while the app is running.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("System") {
                 Toggle("Launch at login", isOn: Binding(get: { login.enabled }, set: { login.set($0) }))
                 if let error = login.error {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
-            }
-            Section {
-                Text("macOS only changes the wallpaper of the current Space.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Check for updates automatically", isOn: $settings.checkForUpdates)
+                LabeledContent("Version \(Updater.shared.currentVersion)") {
+                    Button("Check Now") { Updater.shared.check(userInitiated: true) }
+                }
             }
         }
         .formStyle(.grouped)
@@ -154,9 +175,21 @@ struct HotkeyRecorder: View {
 
 // MARK: - Folders
 
+enum FilePicker {
+    static func choose(folders: Bool, files: Bool, multiple: Bool = false, prompt: String = "Choose") -> [URL] {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = folders
+        panel.canChooseFiles = files
+        panel.allowsMultipleSelection = multiple
+        panel.prompt = prompt
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+}
+
 struct FolderSettings: View {
     @ObservedObject var settings: Settings
     @ObservedObject var store: WallpaperStore
+    var onOpenOnline: () -> Void
 
     var body: some View {
         Form {
@@ -169,12 +202,14 @@ struct FolderSettings: View {
                         settings.folders.removeAll { $0.path == folder.path }
                     }
                 }
-                Button("Add Folder…", systemImage: "plus") { addFolder() }
+                Button("Add Folder…", systemImage: "plus") {
+                    settings.addFolders(FilePicker.choose(folders: true, files: false, multiple: true, prompt: "Add"))
+                }
             } header: {
                 Text("Wallpaper folders")
             } footer: {
                 HStack {
-                    Text("\(store.all.count) wallpapers found")
+                    Text("\(store.all.count) wallpapers found · \(settings.favorites.count) favorites")
                     Spacer()
                     Button("Rescan") { store.reload() }.controlSize(.small)
                 }
@@ -185,9 +220,9 @@ struct FolderSettings: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 4), alignment: .leading) {
                     ForEach(ImageType.all) { type in
                         Toggle(type.label, isOn: Binding(
-                            get: { settings.imageTypes.contains(type.id) },
+                            get: { !settings.disabledImageTypes.contains(type.id) },
                             set: { on in
-                                if on { settings.imageTypes.insert(type.id) } else { settings.imageTypes.remove(type.id) }
+                                if on { settings.disabledImageTypes.remove(type.id) } else { settings.disabledImageTypes.insert(type.id) }
                             }
                         ))
                         .toggleStyle(.checkbox)
@@ -200,17 +235,34 @@ struct FolderSettings: View {
                     ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
                 }
             }
+
+            Section {
+                LabeledContent("Save to") {
+                    HStack {
+                        Text(settings.downloadFolder.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                            .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                        Button("Change…") {
+                            if let url = FilePicker.choose(folders: true, files: false).first {
+                                settings.downloadFolder = url.path
+                            }
+                        }
+                    }
+                }
+                Button("Get Wallpapers Online…", systemImage: "globe", action: onOpenOnline)
+            } header: {
+                Text("Downloads & imports")
+            } footer: {
+                Text("Wallpapers from the online browser and images dropped on the menu bar icon are saved here.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if !settings.favorites.isEmpty {
+                Section("Favorites") {
+                    Button("Clear All Favorites", role: .destructive) { settings.favorites = [] }
+                }
+            }
         }
         .formStyle(.grouped)
-    }
-
-    private func addFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.prompt = "Add"
-        if panel.runModal() == .OK { settings.addFolders(panel.urls) }
     }
 }
 
@@ -248,8 +300,16 @@ struct AppearanceSettings: View {
 
     var body: some View {
         Form {
+            Section("Style") {
+                Picker("Layout", selection: $settings.ringStyle) {
+                    ForEach(RingStyle.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Live preview of the selected wallpaper", isOn: $settings.livePreview)
+            }
             Section("Background") {
                 SliderRow(title: "Blur", value: $settings.blurRadius, range: 0...40, format: "%.0f")
+                    .disabled(settings.livePreview)
                 SliderRow(title: "Dimming", value: $settings.dimming, range: 0...0.8, format: "%.0f%%", scale: 100)
             }
             Section("Cards") {
@@ -260,14 +320,15 @@ struct AppearanceSettings: View {
                 SliderRow(title: "Corner radius", value: $settings.cornerRadius, range: 0...24, format: "%.0f")
                 SliderRow(title: "Side card darkening", value: $settings.sideDimming, range: 0...1, format: "%.0f%%", scale: 100)
             }
-            Section("Ring") {
+            Section("Ring & carousel") {
                 SliderRow(title: "Spacing", value: $settings.cardSpacing, range: 5...30, format: "%.0f°")
-                SliderRow(title: "Radius", value: $settings.ringRadius, range: 0.35...1.5, format: "%.2f")
+                SliderRow(title: "Ring radius", value: $settings.ringRadius, range: 0.35...1.5, format: "%.2f")
                 Stepper("Visible cards: \(settings.visibleCards)", value: $settings.visibleCards, in: 3...31, step: 2)
                 SliderRow(title: "Animation speed", value: $settings.animationSpeed, range: 0.4...2.5, format: "%.1f×")
                 Toggle("Spin in when opening", isOn: $settings.spinIn)
             }
             Section("Overlay") {
+                Toggle("Show folder tabs", isOn: $settings.showTabs)
                 Toggle("Show search bar", isOn: $settings.showSearchBar)
                 Toggle("Show keyboard hints", isOn: $settings.showHints)
             }
@@ -300,5 +361,178 @@ struct SliderRow: View {
                     .frame(width: 44, alignment: .trailing)
             }
         }
+    }
+}
+
+// MARK: - Automation
+
+struct AutomationSettings: View {
+    @ObservedObject var settings: Settings
+    var onNext: () -> Void
+
+    private let intervals = [5, 10, 15, 30, 60, 120, 240, 720, 1440]
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Change wallpaper automatically", selection: $settings.automation) {
+                    ForEach(AutomationMode.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if settings.automation == .interval {
+                Section("Rotation") {
+                    Picker("Every", selection: $settings.intervalMinutes) {
+                        ForEach(intervals, id: \.self) { Text(Self.label(minutes: $0)).tag($0) }
+                    }
+                    Picker("From", selection: $settings.rotationPool) {
+                        ForEach(RotationPool.allCases) { Text($0.label).tag($0) }
+                    }
+                    Toggle("Shuffle", isOn: $settings.rotationShuffle)
+                    Button("Next Wallpaper Now", action: onNext)
+                }
+            }
+
+            if settings.automation == .timeOfDay {
+                Section {
+                    ForEach($settings.timeSlots) { $slot in
+                        TimeSlotRow(slot: $slot) { settings.timeSlots.removeAll { $0.id == slot.id } }
+                    }
+                    Button("Add Time", systemImage: "plus") {
+                        settings.timeSlots.append(TimeSlot(name: "New", hour: 12))
+                    }
+                } header: {
+                    Text("Schedule")
+                } footer: {
+                    Text("Each time picks a wallpaper file, or a random one from a folder, and applies it from that time on.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if settings.automation == .off {
+                Section {
+                    Text("Pick “Change every…” to rotate through your wallpapers, or “Time of day” to show different wallpapers in the morning, during the day, in the evening and at night.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    static func label(minutes: Int) -> String {
+        switch minutes {
+        case ..<60: "\(minutes) minutes"
+        case 60: "hour"
+        case 1440: "day"
+        default: "\(minutes / 60) hours"
+        }
+    }
+}
+
+struct TimeSlotRow: View {
+    @Binding var slot: TimeSlot
+    var onRemove: () -> Void
+
+    private var time: Binding<Date> {
+        Binding(
+            get: { Calendar.current.date(bySettingHour: slot.hour, minute: slot.minute, second: 0, of: Date()) ?? Date() },
+            set: {
+                let c = Calendar.current.dateComponents([.hour, .minute], from: $0)
+                slot.hour = c.hour ?? 0
+                slot.minute = c.minute ?? 0
+            })
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("Name", text: $slot.name).frame(width: 90)
+            DatePicker("", selection: time, displayedComponents: .hourAndMinute).labelsHidden()
+            Text(slot.displayPath)
+                .font(.caption).foregroundStyle(slot.path.isEmpty ? .orange : .secondary)
+                .lineLimit(1).truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Choose…") {
+                if let url = FilePicker.choose(folders: true, files: true).first { slot.path = url.path }
+            }
+            .controlSize(.small)
+            Button(action: onRemove) { Image(systemName: "minus.circle.fill").foregroundStyle(.secondary) }
+                .buttonStyle(.borderless)
+        }
+    }
+}
+
+// MARK: - Colors
+
+struct ColorSettings: View {
+    @ObservedObject var settings: Settings
+    @ObservedObject var app: AppDelegate
+
+    private var folderURL: URL { URL(fileURLWithPath: (settings.paletteFolder as NSString).expandingTildeInPath) }
+
+    var body: some View {
+        Form {
+            Section("Current wallpaper") {
+                if let palette = app.currentPalette {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            ForEach(0..<8, id: \.self) { Swatch(color: palette.colors[$0]) }
+                        }
+                        HStack(spacing: 4) {
+                            ForEach(8..<16, id: \.self) { Swatch(color: palette.colors[$0]) }
+                        }
+                        HStack(spacing: 6) {
+                            Swatch(color: palette.accent)
+                            Text("Accent \(palette.accent.hex)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text("No palette yet – apply a wallpaper first.").foregroundStyle(.secondary)
+                }
+                Toggle("Tint the launcher with the wallpaper's accent color", isOn: $settings.matchAccent)
+            }
+
+            Section {
+                Toggle("Export a color scheme when the wallpaper changes", isOn: $settings.exportPalette)
+                LabeledContent("Folder") {
+                    HStack {
+                        Text(settings.paletteFolder.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                            .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                        Button("Change…") {
+                            if let url = FilePicker.choose(folders: true, files: false).first { settings.paletteFolder = url.path }
+                        }
+                        Button { NSWorkspace.shared.open(folderURL) } label: { Image(systemName: "folder") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+            } header: {
+                Text("Color scheme (like pywal)")
+            } footer: {
+                Text("Writes colors.json, colors.sh, colors.css, colors.Xresources, colors-kitty.conf, colors-ghostty and colors-alacritty.toml. Include them in your terminal or editor config.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField("Command", text: $settings.postChangeCommand, prompt: Text("e.g. kitty +kitten themes --reload-in=all"))
+                    .font(.system(.body, design: .monospaced))
+            } header: {
+                Text("Run after every change")
+            } footer: {
+                Text("Runs in zsh with $WALLPAPER (the image path) and $WALLPAPER_COLORS (colors.json, if exported) set.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct Swatch: View {
+    let color: NSColor
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(Color(nsColor: color))
+            .frame(width: 28, height: 28)
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.primary.opacity(0.15)))
+            .help(color.hex)
     }
 }
