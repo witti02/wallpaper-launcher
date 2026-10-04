@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NSApp.mainMenu = makeMainMenu()
 
         if let i = CommandLine.arguments.firstIndex(of: "--render-demo"), i + 1 < CommandLine.arguments.count {
             let path = CommandLine.arguments[i + 1]
@@ -111,6 +112,7 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
             return
         }
 
+        applyIconSettings()
         engine.restoreLiveWallpapers()
         automation = Automation(store: store) { [weak self] url in self?.applyAutomatically(url) }
         store.reload { self.automation.tick() }
@@ -374,6 +376,12 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
             .sink { [weak self] _, _, _ in self?.engine.reapplyAll(onlyIfDifferent: false) }
             .store(in: &cancellables)
 
+        Publishers.CombineLatest(settings.$showInDock, settings.$showInMenuBar)
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _ in self?.applyIconSettings() }
+            .store(in: &cancellables)
+
         settings.$pauseVideosOnBattery
             .dropFirst()
             .receive(on: RunLoop.main)
@@ -437,7 +445,67 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
         }
     }
 
+    /// Dock icon and menu bar icon can each be turned off; the shortcut always works.
+    func applyIconSettings() {
+        let policy: NSApplication.ActivationPolicy = settings.showInDock ? .regular : .accessory
+        if NSApp.activationPolicy() != policy {
+            NSApp.setActivationPolicy(policy)
+            // Leaving the Dock deactivates the app; keep open windows in front.
+            if policy == .accessory, settingsWindow?.isVisible == true { NSApp.activate(ignoringOtherApps: true) }
+        }
+        statusItem.isVisible = settings.showInMenuBar
+    }
+
+    /// The app menu shown while the app is active (only relevant with the Dock icon).
+    func makeMainMenu() -> NSMenu {
+        let main = NSMenu()
+        let appItem = main.addItem(withTitle: "WallpaperLauncher", action: nil, keyEquivalent: "")
+        let appMenu = NSMenu(title: "WallpaperLauncher")
+        appMenu.addItem(withTitle: "About WallpaperLauncher", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "").target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide WallpaperLauncher", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Quit WallpaperLauncher", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+
+        let fileItem = main.addItem(withTitle: "Wallpaper", action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: "Wallpaper")
+        fileMenu.addItem(withTitle: "Open Launcher", action: #selector(showFromMenu), keyEquivalent: "").target = self
+        fileMenu.addItem(withTitle: "Next Wallpaper", action: #selector(nextWallpaper), keyEquivalent: "").target = self
+        fileMenu.addItem(withTitle: "Random Wallpaper", action: #selector(applyRandom), keyEquivalent: "").target = self
+        fileMenu.addItem(withTitle: "Get Wallpapers…", action: #selector(openOnline), keyEquivalent: "").target = self
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileItem.submenu = fileMenu
+
+        // Standard edit commands so copy/paste works in text fields.
+        let editItem = main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = editMenu
+        return main
+    }
+
+    /// Right-click menu of the Dock icon: same items as the menu bar icon.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        fillMenu(menu, includeQuit: false)
+        return menu
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
+        fillMenu(menu, includeQuit: true)
+    }
+
+    func fillMenu(_ menu: NSMenu, includeQuit: Bool) {
         menu.removeAllItems()
         let open = menu.addItem(withTitle: "Open Launcher", action: #selector(showFromMenu), keyEquivalent: "")
         if settings.hotkeyKeyName.count == 1 {
@@ -459,8 +527,10 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
         menu.addItem(withTitle: "Rescan (\(store.all.count) wallpapers)", action: #selector(reloadFromMenu), keyEquivalent: "")
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        if includeQuit {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        }
         for item in menu.items where item.action != #selector(NSApplication.terminate(_:)) { item.target = self }
     }
 

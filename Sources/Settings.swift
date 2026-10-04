@@ -192,8 +192,10 @@ final class Settings: ObservableObject {
     @Published var paletteFolder: String { didSet { defaults.set(paletteFolder, forKey: "paletteFolder") } }
     @Published var postChangeCommand: String { didSet { defaults.set(postChangeCommand, forKey: "postChangeCommand") } }
 
-    // Updates
+    // Updates & app icons
     @Published var checkForUpdates: Bool { didSet { defaults.set(checkForUpdates, forKey: "checkForUpdates") } }
+    @Published var showInDock: Bool { didSet { defaults.set(showInDock, forKey: "showInDock") } }
+    @Published var showInMenuBar: Bool { didSet { defaults.set(showInMenuBar, forKey: "showInMenuBar") } }
 
     // Appearance
     @Published var ringStyle: RingStyle { didSet { defaults.set(ringStyle.rawValue, forKey: "ringStyle") } }
@@ -260,6 +262,9 @@ final class Settings: ObservableObject {
         postChangeCommand = d.string(forKey: "postChangeCommand") ?? ""
 
         checkForUpdates = d.object(forKey: "checkForUpdates") as? Bool ?? true
+        // On by default: macOS 27 can hide menu bar icons, and the Dock icon keeps the app reachable.
+        showInDock = d.object(forKey: "showInDock") as? Bool ?? true
+        showInMenuBar = d.object(forKey: "showInMenuBar") as? Bool ?? true
 
         ringStyle = RingStyle(rawValue: d.string(forKey: "ringStyle") ?? "") ?? .ring
         livePreview = d.object(forKey: "livePreview") as? Bool ?? true

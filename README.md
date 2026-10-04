@@ -35,7 +35,7 @@ Press a global hotkey, your wallpapers appear on a rotating 3D ring over a live 
 - **Drag & drop** images, videos or image links onto the menu bar icon to add and apply them
 
 **App**
-- Menu bar app (no Dock icon), settings window, built-in **auto-update** from GitHub releases
+- Dock and/or menu bar icon (both optional), settings window, built-in **auto-update** from GitHub releases
 - Supports JPG, PNG, HEIC, WebP, TIFF, GIF, BMP, MP4, MOV and M4V
 
 ## Download
@@ -69,7 +69,7 @@ The app is not notarized by Apple, so macOS blocks it on first launch. To open i
 | `⌘,` | Open settings |
 | `esc` | Clear search, then close |
 
-The menu bar icon also offers **Next Wallpaper**, **Random Wallpaper**, **Get Wallpapers…**, **Check for Updates…** and accepts dropped images.
+Clicking the Dock icon opens the launcher. Right-clicking it (or clicking the menu bar icon) offers **Next Wallpaper**, **Random Wallpaper**, **Get Wallpapers…**, **Settings…** and **Check for Updates…**. The menu bar icon also accepts dropped images.
 
 ### Settings
 
@@ -77,7 +77,7 @@ Open them from the menu bar icon → **Settings…** or with `⌘,` while the la
 
 | Tab | Options |
 |---|---|
-| **General** | shortcut, target displays, scaling, close after applying, all Spaces, light/dark pairs, GIF animation, pause videos on battery, launch at login, automatic updates |
+| **General** | shortcut, target displays, scaling, close after applying, all Spaces, light/dark pairs, GIF animation, pause videos on battery, Dock and menu bar icon, launch at login, automatic updates |
 | **Folders** | add, remove and disable folders, subfolders per folder, file types, sort order, download folder, favorites |
 | **Appearance** | layout, live preview, blur, dimming, card shape and size, corner radius, ring spacing and radius, visible cards, animation speed, tabs, search bar and hints |
 | **Automation** | rotation interval, pool and order, or a time-of-day schedule |
@@ -124,4 +124,5 @@ build/WallpaperLauncher.app/Contents/MacOS/WallpaperLauncher --render-demo docs/
 - macOS has no API to set a wallpaper for all Spaces, so the app re-applies it when you switch to a Space that still shows an old one.
 - Live wallpapers only play while the app is running; otherwise their first frame stays as a still wallpaper.
 - The light background blur uses a private window server call (the same one terminal emulators use). If it ever becomes unavailable, the app falls back to a standard macOS blur.
+- macOS 27 sometimes hides the menu bar icon; the Dock icon (on by default) and the shortcut always work.
 - "Launch at Login" and auto-update require the app to live in `/Applications` or `~/Applications`.

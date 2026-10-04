@@ -96,6 +96,12 @@ struct GeneralSettings: View {
                 if let error = login.error {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
+                Toggle("Show icon in the Dock", isOn: $settings.showInDock)
+                Toggle("Show icon in the menu bar", isOn: $settings.showInMenuBar)
+                if !settings.showInDock && !settings.showInMenuBar {
+                    Text("Without icons, open the launcher with \(settings.hotkeyDisplay) and the settings with ⌘, inside it.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
                 Toggle("Check for updates automatically", isOn: $settings.checkForUpdates)
                 LabeledContent("Version \(Updater.shared.currentVersion)") {
                     Button("Check Now") { Updater.shared.check(userInitiated: true) }
