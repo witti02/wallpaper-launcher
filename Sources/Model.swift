@@ -42,6 +42,14 @@ enum LibraryTab: Hashable {
     }
 }
 
+/// What the card context menu can do; closures are set by the app delegate.
+struct CardActions {
+    var apply: (Wallpaper) -> Void = { _ in }
+    var toggleFavorite: (Wallpaper) -> Void = { _ in }
+    var reveal: (Wallpaper) -> Void = { _ in }
+    var trash: (Wallpaper) -> Void = { _ in }
+}
+
 // MARK: - Store
 
 final class WallpaperStore: ObservableObject {
@@ -62,6 +70,10 @@ final class WallpaperStore: ObservableObject {
     @Published var targetDisplay: Int?
     /// Number of columns in the grid style, reported by the grid view for keyboard navigation.
     var gridColumns = 1
+    /// Short message shown above the search bar (e.g. after moving a file to the Trash).
+    @Published var toast: String?
+    /// Card actions (context menu), wired up by the app delegate.
+    var actions = CardActions()
 
     private let settings = Settings.shared
 
@@ -214,6 +226,7 @@ final class ThumbnailCache {
     }
 
     func store(_ image: NSImage, for url: URL) { cache.setObject(image, forKey: url as NSURL) }
+    func remove(_ url: URL) { cache.removeObject(forKey: url as NSURL) }
 }
 
 extension Array {

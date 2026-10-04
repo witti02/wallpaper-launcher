@@ -214,6 +214,7 @@ final class Settings: ObservableObject {
     @Published var showSearchBar: Bool { didSet { defaults.set(showSearchBar, forKey: "showSearchBar") } }
     @Published var showHints: Bool { didSet { defaults.set(showHints, forKey: "showHints") } }
     @Published var showTabs: Bool { didSet { defaults.set(showTabs, forKey: "showTabs") } }
+    @Published var hapticFeedback: Bool { didSet { defaults.set(hapticFeedback, forKey: "hapticFeedback") } }
 
     private init() {
         let d = UserDefaults.standard
@@ -282,6 +283,7 @@ final class Settings: ObservableObject {
         showSearchBar = d.object(forKey: "showSearchBar") as? Bool ?? true
         showHints = d.object(forKey: "showHints") as? Bool ?? true
         showTabs = d.object(forKey: "showTabs") as? Bool ?? true
+        hapticFeedback = d.object(forKey: "hapticFeedback") as? Bool ?? true
     }
 
     enum Defaults {

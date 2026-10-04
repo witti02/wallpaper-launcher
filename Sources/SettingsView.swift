@@ -332,6 +332,7 @@ struct AppearanceSettings: View {
                 Stepper("Visible cards: \(settings.visibleCards)", value: $settings.visibleCards, in: 3...31, step: 2)
                 SliderRow(title: "Animation speed", value: $settings.animationSpeed, range: 0.4...2.5, format: "%.1f×")
                 Toggle("Spin in when opening", isOn: $settings.spinIn)
+                Toggle("Haptic feedback when scrolling on the trackpad", isOn: $settings.hapticFeedback)
             }
             Section("Overlay") {
                 Toggle("Show folder tabs", isOn: $settings.showTabs)

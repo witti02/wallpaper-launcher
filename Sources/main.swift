@@ -87,6 +87,11 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
         panel.delegate = self
 
         engine.onChange = { [weak self] in self?.wallpaperChanged($0) }
+        store.actions = CardActions(
+            apply: { [weak self] in self?.apply($0.url) },
+            toggleFavorite: { [weak self] in self?.toggleFavorite($0) },
+            reveal: { NSWorkspace.shared.activateFileViewerSelecting([$0.url]) },
+            trash: { [weak self] in self?.trash($0) })
         onlineModel.onApply = { [weak self] url in
             self?.store.reload()
             self?.apply(url, keepOpen: true)
@@ -168,6 +173,8 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
     }
 
     func hide() {
+        lastTrashed = nil
+        store.toast = nil
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.1; panel.animator().alphaValue = 0 }) {
             self.panel.orderOut(nil)
         }
@@ -255,10 +262,62 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
         settings.ringStyle = all[((all.firstIndex(of: settings.ringStyle) ?? 0) + 1) % all.count]
     }
 
-    func toggleFavorite() {
-        guard let wp = store.selected else { return }
+    func toggleFavorite(_ wallpaper: Wallpaper? = nil) {
+        guard let wp = wallpaper ?? store.selected else { return }
         settings.toggleFavorite(wp.url)
         if store.tab == .favorites && store.filtered.isEmpty { store.tab = .all }
+    }
+
+    // MARK: Deleting
+
+    /// The last file moved to the Trash, so ⌘Z can put it back.
+    var lastTrashed: (original: URL, inTrash: URL)?
+    var toastTimer: Timer?
+
+    func trash(_ wallpaper: Wallpaper? = nil) {
+        guard let wp = wallpaper ?? store.selected else { return }
+        var inTrash: NSURL?
+        do {
+            try FileManager.default.trashItem(at: wp.url, resultingItemURL: &inTrash)
+        } catch {
+            showToast("Could not move “\(wp.name)” to the Trash")
+            return
+        }
+        lastTrashed = inTrash.map { (wp.url, $0 as URL) }
+        ThumbnailCache.shared.remove(wp.url)
+        let wasFavorite = settings.isFavorite(wp.url)
+        if wasFavorite { settings.favorites.remove(wp.url.path) }
+        // The next card slides into the same position.
+        withAnimation(.easeOut(duration: 0.25)) { store.all.removeAll { $0.url == wp.url } }
+        if store.tab == .favorites && store.filtered.isEmpty { store.tab = .all }
+        lastTrashedWasFavorite = wasFavorite
+        showToast(lastTrashed == nil ? "Moved “\(wp.name)” to the Trash" : "Moved “\(wp.name)” to the Trash  ·  ⌘Z Undo")
+    }
+
+    var lastTrashedWasFavorite = false
+
+    func undoTrash() {
+        guard let (original, inTrash) = lastTrashed else { return }
+        do {
+            try FileManager.default.moveItem(at: inTrash, to: original)
+        } catch {
+            showToast("Could not restore “\(original.deletingPathExtension().lastPathComponent)”")
+            return
+        }
+        lastTrashed = nil
+        if lastTrashedWasFavorite { settings.favorites.insert(original.path) }
+        store.reload {
+            if let i = self.store.filtered.firstIndex(where: { $0.url == original }) { self.store.selection = i }
+        }
+        showToast("Restored “\(original.deletingPathExtension().lastPathComponent)”")
+    }
+
+    func showToast(_ text: String) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { store.toast = text }
+        toastTimer?.invalidate()
+        toastTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
+            withAnimation(.easeOut(duration: 0.25)) { self?.store.toast = nil }
+        }
     }
 
     // MARK: Keyboard
@@ -286,6 +345,10 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
             case kVK_Escape:
                 if self.store.query.isEmpty { self.hide() } else { self.store.query = "" }
             case kVK_ANSI_R where cmd: self.applyRandom()
+            case kVK_Delete where cmd, kVK_ForwardDelete where cmd: self.trash()
+            case kVK_ANSI_Z where cmd:
+                guard self.lastTrashed != nil else { return event } // otherwise undo typing in the search field
+                self.undoTrash()
             case kVK_ANSI_F where cmd: self.toggleFavorite()
             case kVK_ANSI_D where cmd: self.cycleDisplay()
             case kVK_ANSI_S where cmd: self.cycleStyle()
@@ -315,6 +378,11 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
                 let dir = self.scrollAccum > 0 ? 1 : -1
                 self.store.move(dir)
                 self.scrollAccum -= CGFloat(dir) * threshold
+                // A click on the Force Touch trackpad for every card that passes, like a detent.
+                // Only while the finger is down: during momentum scrolling nothing could be felt anyway.
+                if self.settings.hapticFeedback, event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                }
             }
             if event.phase == .ended || event.momentumPhase == .ended { self.scrollAccum = 0 }
             return nil

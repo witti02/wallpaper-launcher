@@ -15,7 +15,8 @@ Press a global hotkey, your wallpapers appear on a rotating 3D ring over a live 
 - **Three layouts:** rotating 3D ring, cover-flow carousel, or a rofi-style grid
 - **Live preview:** the selected wallpaper fills the screen behind the cards while you browse
 - **Folder tabs:** switch between all wallpapers, favorites and each folder with `↑` `↓`
-- **Favorites** (`⌘F`), type-to-search, keyboard, trackpad and scroll wheel navigation
+- **Favorites** (`⌘F`), type-to-search, keyboard, trackpad (with haptic feedback) and scroll wheel navigation
+- **Delete** wallpapers right from the launcher (`⌘⌫` or right-click → Move to Trash, `⌘Z` to undo)
 - **Accent color** of the launcher follows the current wallpaper
 
 **Applying**
@@ -62,6 +63,8 @@ The app is not notarized by Apple, so macOS blocks it on first launch. To open i
 | `↩` or double-click | Apply wallpaper |
 | `⇧↩` | Apply and keep the launcher open |
 | `⌘F` | Add / remove favorite |
+| `⌘⌫` | Move the selected wallpaper to the Trash (`⌘Z` undoes) |
+| right-click a card | Apply, favorite, show in Finder, move to Trash |
 | `⌘D` / `⌘1`–`⌘9` | Choose the display to apply to |
 | `⌘S` | Switch layout (ring, carousel, grid) |
 | `⌘G` | Get wallpapers online |

@@ -257,6 +257,7 @@ struct CardsView: View {
     private func cardView(_ wp: Wallpaper, _ size: CGSize) -> some View {
         ThumbView(wallpaper: wp, isCurrent: wp.url == store.current, isFavorite: settings.isFavorite(wp.url),
                   size: size, cornerRadius: settings.cornerRadius)
+            .contextMenu { CardMenu(wallpaper: wp, store: store) }
     }
 }
 
@@ -295,6 +296,7 @@ struct GridCards: View {
                             .id(wp.id)
                             .onTapGesture(count: 2) { store.selection = i; onApply(wp.url) }
                             .onTapGesture { store.selection = i }
+                            .contextMenu { CardMenu(wallpaper: wp, store: store) }
                     }
                 }
                 .padding(.vertical, 120)
@@ -311,6 +313,23 @@ struct GridCards: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: store.position)
+    }
+}
+
+// MARK: - Context menu
+
+struct CardMenu: View {
+    let wallpaper: Wallpaper
+    let store: WallpaperStore
+
+    var body: some View {
+        Button("Apply") { store.actions.apply(wallpaper) }
+        Button(Settings.shared.isFavorite(wallpaper.url) ? "Remove from Favorites" : "Add to Favorites") {
+            store.actions.toggleFavorite(wallpaper)
+        }
+        Button("Show in Finder") { store.actions.reveal(wallpaper) }
+        Divider()
+        Button("Move to Trash") { store.actions.trash(wallpaper) }
     }
 }
 
@@ -359,9 +378,18 @@ struct LauncherView: View {
             VStack(spacing: 8) {
                 if settings.showTabs && store.tabs.count > 1 { tabBar.padding(.top, 44) }
                 Spacer()
+                if let toast = store.toast {
+                    Text(toast)
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(VisualEffect())
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 if settings.showSearchBar { bottomBar }
                 if settings.showHints {
-                    Text("←→ select   ↑↓ folder   ↩ apply   ⌘F favorite   ⌘D display   ⌘S style   ⌘G online   ⌘R random   ⌘, settings   esc close")
+                    Text("←→ select   ↑↓ folder   ↩ apply   ⌘F favorite   ⌘⌫ delete   ⌘D display   ⌘S style   ⌘G online   ⌘R random   ⌘, settings   esc close")
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.5))
                 }
