@@ -49,7 +49,7 @@ final class LauncherPanel: NSPanel {
 
 // MARK: - App
 
-final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWindowDelegate {
     let store = WallpaperStore()
     let settings = Settings.shared
     let engine = WallpaperEngine.shared
@@ -492,14 +492,57 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "photo.on.rectangle", accessibilityDescription: "Wallpaper")
+        let icon = NSImage(systemSymbolName: "photo.on.rectangle", accessibilityDescription: "Wallpaper")
+        icon?.isTemplate = true // plain monochrome glyph that follows the menu bar's own tint, like every other menu extra
+        button.image = icon
         button.toolTip = "WallpaperLauncher – drop images here to add them"
         let drop = StatusDropView(button: button)
         drop.onDrop = { [weak self] urls in self?.importDropped(urls) }
         button.addSubview(drop)
+        button.target = self
+        button.action = #selector(statusItemClicked)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    /// Left click: pick a wallpaper directly from the menu bar. Right click: the regular actions menu.
+    @objc func statusItemClicked() {
+        guard let button = statusItem.button else { return }
         let menu = NSMenu()
-        menu.delegate = self
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            fillMenu(menu, includeQuit: true)
+        } else {
+            fillWallpaperPicker(menu)
+        }
+        // A menu assigned to the status item pops up on click and is cleared right after, so the
+        // click type can be inspected beforehand instead of always showing the same fixed menu.
         statusItem.menu = menu
+        button.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    func fillWallpaperPicker(_ menu: NSMenu) {
+        let current = currentWallpaper()
+        if store.all.isEmpty {
+            menu.addItem(withTitle: "No wallpapers yet", action: nil, keyEquivalent: "").isEnabled = false
+        } else {
+            for wp in store.all {
+                let item = menu.addItem(withTitle: wp.name, action: #selector(applyFromStatusItem(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = wp.url
+                item.state = wp.url == current ? .on : .off
+                if let thumb = ThumbnailCache.shared.cached(wp.url)?.copy() as? NSImage {
+                    thumb.size = NSSize(width: 16, height: 16)
+                    item.image = thumb
+                }
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Open Launcher…", action: #selector(showFromMenu), keyEquivalent: "").target = self
+    }
+
+    @objc func applyFromStatusItem(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        apply(url)
     }
 
     func importDropped(_ urls: [URL]) {
@@ -567,10 +610,6 @@ final class AppDelegate: NSObject, ObservableObject, NSApplicationDelegate, NSWi
         let menu = NSMenu()
         fillMenu(menu, includeQuit: false)
         return menu
-    }
-
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        fillMenu(menu, includeQuit: true)
     }
 
     func fillMenu(_ menu: NSMenu, includeQuit: Bool) {

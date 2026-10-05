@@ -224,8 +224,7 @@ struct CardsView: View {
                     .modifier(RingSlot(angle: angle, radius: radius, fadeAngle: fade, step: step,
                                        cornerRadius: settings.cornerRadius, sideDimming: settings.sideDimming,
                                        highlight: highlight))
-                    .onTapGesture(count: 2) { store.position = slot; onApply(wp.url) }
-                    .onTapGesture { store.position = slot }
+                    .onTapGesture { store.position = slot; onApply(wp.url) }
                     .transition(.opacity)
             }
         }
@@ -245,8 +244,7 @@ struct CardsView: View {
                     .modifier(CarouselSlot(offset: offset, cardWidth: card.width, fade: fade,
                                            cornerRadius: settings.cornerRadius, sideDimming: settings.sideDimming,
                                            highlight: highlight))
-                    .onTapGesture(count: 2) { store.position = slot; onApply(wp.url) }
-                    .onTapGesture { store.position = slot }
+                    .onTapGesture { store.position = slot; onApply(wp.url) }
                     .transition(.opacity)
             }
         }
@@ -294,8 +292,7 @@ struct GridCards: View {
                             .shadow(color: .black.opacity(selected ? 0.55 : 0.3), radius: selected ? 16 : 6, y: 6)
                             .zIndex(selected ? 1 : 0)
                             .id(wp.id)
-                            .onTapGesture(count: 2) { store.selection = i; onApply(wp.url) }
-                            .onTapGesture { store.selection = i }
+                            .onTapGesture { store.selection = i; onApply(wp.url) }
                             .contextMenu { CardMenu(wallpaper: wp, store: store) }
                     }
                 }

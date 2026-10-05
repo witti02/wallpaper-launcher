@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 APP=build/WallpaperLauncher.app
-VERSION=1.1.2
+VERSION=1.1.3
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 BIN="$APP/Contents/MacOS/WallpaperLauncher"
